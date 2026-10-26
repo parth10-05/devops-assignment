@@ -341,8 +341,8 @@ resource "aws_iam_role" "github_actions" {
         StringEquals = {
           "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
         }
-        StringLike = {
-          "token.actions.githubusercontent.com:sub" = "repo:${var.github_repository}:ref:refs/heads/${var.deployment_branch}"
+        StringEquals = {
+          "token.actions.githubusercontent.com:sub" = "repo:parth10-05@156986993/devops-assignment@1434084795:environment:production"
         }
       }
     }]
