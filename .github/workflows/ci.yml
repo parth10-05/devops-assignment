@@ -51,10 +51,4 @@ jobs:
       - name: Scan Python source for unsafe patterns
         run: bandit -r ml services scripts -x "*/tests/*" -ll
       - name: Scan repository and Dockerfiles for vulnerabilities
-        uses: aquasecurity/trivy-action@v0.33.1
-        with:
-          scan-type: fs
-          scan-ref: .
-          severity: HIGH,CRITICAL
-          exit-code: "1"
-          ignore-unfixed: true
+        run: docker run --rm -v "$PWD:/src" aquasec/trivy:latest fs --no-progress --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --skip-dirs .git /src
