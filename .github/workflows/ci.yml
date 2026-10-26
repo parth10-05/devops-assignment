@@ -28,7 +28,7 @@ jobs:
       - name: Validate Docker Compose syntax
         run: docker compose config --quiet
       - name: Build application images
-        run: docker compose build gateway backend-api feedback-service model-service ticket-generator postgres
+        run: docker compose build gateway backend-api feedback-service model-service postgres
 
   security:
     runs-on: ubuntu-latest
