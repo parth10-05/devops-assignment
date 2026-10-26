@@ -1,4 +1,9 @@
-import base64, json, os, sys, urllib.request, urllib.error
+import base64
+import json
+import os
+import sys
+import urllib.error
+import urllib.request
 
 BASE = os.getenv("GATEWAY_URL", f"http://127.0.0.1:{os.getenv('GATEWAY_PORT', '8085')}").rstrip("/")
 AUTH = base64.b64encode(f"{os.getenv('SMOKE_USER', 'smoke')}:{os.getenv('SMOKE_PASSWORD', 'smoke')}".encode()).decode()

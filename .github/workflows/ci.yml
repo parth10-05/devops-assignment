@@ -51,7 +51,7 @@ jobs:
       - name: Scan Python source for unsafe patterns
         run: bandit -r ml services scripts -x "*/tests/*" -ll
       - name: Scan repository and Dockerfiles for vulnerabilities
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@v0.33.1
         with:
           scan-type: fs
           scan-ref: .

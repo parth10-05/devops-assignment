@@ -41,6 +41,7 @@ class ModelHolder:
 
 def load(settings: Settings) -> LoadedModel:
     from pathlib import Path
+
     from sentence_transformers import SentenceTransformer
 
     local_dir = Path(settings.local_artifacts_dir)

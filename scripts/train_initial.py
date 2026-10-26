@@ -1,4 +1,4 @@
-import os, sys
+import sys
 from pathlib import Path
 
 _ML = Path(__file__).resolve().parents[1] / "ml"

@@ -1,4 +1,7 @@
-import argparse, json, os, sys
+import argparse
+import json
+import os
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -6,8 +9,10 @@ _ML = Path(__file__).resolve().parents[1] / "ml"
 if str(_ML) not in sys.path:
     sys.path.insert(0, str(_ML))
 
-import pandas as pd, psycopg
+import pandas as pd
+import psycopg
 from psycopg.types.json import Jsonb
+
 from triage_ml.config import PROCESSED, ROOT
 from triage_ml.export_feedback import snapshot
 from triage_ml.train import run, sentence_embedder, split_feedback, stratified_sample
