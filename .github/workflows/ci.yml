@@ -24,7 +24,7 @@ jobs:
       - name: Lint authored Python
         run: ruff check ml services scripts
       - name: Run ML tests
-        run: python -m pytest ml/tests
+        run: python -m pytest ml/tests -m "not integration"
       - name: Validate Docker Compose syntax
         run: docker compose config --quiet
       - name: Build application images

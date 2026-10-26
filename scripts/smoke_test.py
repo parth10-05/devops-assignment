@@ -17,7 +17,7 @@ def call(method: str, path: str, body: dict | None = None, auth: bool = True):
     if data:
         req.add_header("Content-Type", "application/json")
     try:
-        with urllib.request.urlopen(req, data, timeout=30) as r:
+        with urllib.request.urlopen(req, data, timeout=30) as r:  # nosec B310 - fixed http(s) URL from env
             raw = r.read()
             try:
                 return r.status, json.loads(raw)

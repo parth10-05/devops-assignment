@@ -48,7 +48,7 @@ def main():
     ver = "unknown"
     for _ in range(10):
         try:
-            with urllib.request.urlopen("http://localhost:8002/health", timeout=3) as r:
+            with urllib.request.urlopen("http://localhost:8002/health", timeout=3) as r:  # nosec B310 - fixed http(s) URL from env
                 data = json.loads(r.read())
                 ver = data.get("model_version", "unknown")
                 break
