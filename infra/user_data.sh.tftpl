@@ -1,0 +1,19 @@
+#!/bin/bash
+set -euo pipefail
+
+dnf update -y
+dnf install -y docker curl tar
+command -v aws >/dev/null 2>&1 || dnf install -y awscli2
+systemctl enable --now docker
+systemctl enable --now amazon-ssm-agent || true
+
+id -u triageiq >/dev/null 2>&1 || useradd --system --create-home --shell /sbin/nologin triageiq
+mkdir -p /opt/triageiq/releases /opt/triageiq/artifacts /etc/triageiq
+chown -R triageiq:triageiq /opt/triageiq
+chmod 700 /etc/triageiq
+
+cat >/etc/triageiq/deployment-context <<'EOF'
+PROJECT_NAME=${project_name}
+ENVIRONMENT=${environment}
+EOF
+chmod 600 /etc/triageiq/deployment-context

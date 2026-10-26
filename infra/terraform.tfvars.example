@@ -1,0 +1,8 @@
+# Copy to terraform.tfvars and use the exact GitHub owner/repository before the
+# one-time terraform apply. Do not commit terraform.tfvars.
+github_repository = "YOUR_GITHUB_USERNAME/YOUR_REPOSITORY"
+aws_region        = "ap-south-1"
+project_name      = "triageiq"
+environment       = "prod"
+instance_type     = "t3.small"
+budget_alert_email = "you@example.com"

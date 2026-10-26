@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: triageiq-demo
+  labels:
+    app.kubernetes.io/name: triageiq-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: triageiq-gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: triageiq-gateway
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: gateway
+          image: triageiq-gateway:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: GATEWAY_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: triageiq-gateway-config
+                  key: gateway_port
+            - name: GATEWAY_HTPASSWD
+              valueFrom:
+                secretKeyRef:
+                  name: triageiq-gateway-credentials
+                  key: GATEWAY_HTPASSWD
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 101
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: nginx-conf
+              mountPath: /etc/nginx/conf.d
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: nginx-conf
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  namespace: triageiq-demo
+spec:
+  selector:
+    app.kubernetes.io/name: triageiq-gateway
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+  type: ClusterIP

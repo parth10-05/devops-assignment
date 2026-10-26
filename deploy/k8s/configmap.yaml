@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: triageiq-gateway-config
+  namespace: triageiq-demo
+data:
+  gateway_port: "8080"
