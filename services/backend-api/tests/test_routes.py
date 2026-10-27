@@ -1,5 +1,6 @@
 import psycopg
 import pytest
+
 from .conftest import VERSION, FakeModelClient
 
 TICKET = {

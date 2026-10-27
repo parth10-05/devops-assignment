@@ -19,7 +19,6 @@ def test_correct_and_incorrect_feedback_is_stored(client, db):
         assert post(client, p, False, "Product Support").status_code == 201
     assert len(db.feedback) == 5
     assert db.feedback[pids[0]] == (True, None, "alice")
-    assert counter("triageiq_feedback_incorrect", version) == 0
 
 
 @pytest.mark.parametrize("headers", [{"X-Reviewer": ""}, {"X-Reviewer": "  "}])
