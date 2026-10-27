@@ -3,6 +3,7 @@ import uuid
 import psycopg
 import pytest
 
+
 def post(client, pid, is_correct=True, label=None, **kw):
     body = {"prediction_id": str(pid), "is_correct": is_correct, "corrected_label": label}
     return client.post("/feedback", json=body, **kw)
