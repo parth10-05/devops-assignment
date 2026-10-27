@@ -1,9 +1,6 @@
-import time
-
 import httpx
 from pydantic import ValidationError
 
-from app.observability import MODEL_CALL_ERRORS, MODEL_CALL_SECONDS
 from app.schemas import Prediction
 
 
@@ -22,7 +19,6 @@ class ModelClient:
         self._http.close()
 
     def predict(self, subject: str | None, body: str, request_id: str) -> Prediction:
-        start = time.perf_counter()
         try:
             r = self._http.post(
                 "/predict",
@@ -37,7 +33,4 @@ class ModelClient:
             reason = "http_error"
         except (ValueError, ValidationError):  # bad JSON or wrong shape
             reason = "bad_response"
-        finally:
-            MODEL_CALL_SECONDS.observe(time.perf_counter() - start)
-        MODEL_CALL_ERRORS.labels(reason).inc()
         raise ModelUnavailable(reason)

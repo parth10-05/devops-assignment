@@ -1,7 +1,5 @@
 import psycopg
 import pytest
-from prometheus_client import REGISTRY
-
 from .conftest import VERSION, FakeModelClient
 
 TICKET = {
@@ -12,28 +10,13 @@ TICKET = {
 }
 
 
-def predictions_count(label="IT Support"):
-    v = REGISTRY.get_sample_value(
-        "triageiq_predictions_total", {"model_version": VERSION, "label": label}
-    )
-    return v or 0
-
-
 def test_create_ticket(client, db):
-    before = predictions_count()
     r = client.post("/tickets", json=TICKET)
     assert r.status_code == 201
     pred = r.json()["prediction"]
     assert pred["label"] == "IT Support" and pred["model_version"] == VERSION
     assert "prediction_id" in pred and "ticket_id" in r.json()
     assert len(db.inserted) == 1
-    assert predictions_count() == before + 1
-
-
-def test_smoke_ticket_not_counted(client):
-    before = predictions_count()
-    assert client.post("/tickets", json={**TICKET, "source": "smoke"}).status_code == 201
-    assert predictions_count() == before
 
 
 @pytest.mark.parametrize(

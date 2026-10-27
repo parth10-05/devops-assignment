@@ -2,19 +2,13 @@ import uuid
 
 import psycopg
 import pytest
-from prometheus_client import REGISTRY
-
-
-def counter(name, version):
-    return REGISTRY.get_sample_value(f"{name}_total", {"model_version": version}) or 0
-
 
 def post(client, pid, is_correct=True, label=None, **kw):
     body = {"prediction_id": str(pid), "is_correct": is_correct, "corrected_label": label}
     return client.post("/feedback", json=body, **kw)
 
 
-def test_correct_and_incorrect_counted(client, db):
+def test_correct_and_incorrect_feedback_is_stored(client, db):
     version = f"v-{uuid.uuid4()}"
     pids = [uuid.uuid4() for _ in range(5)]
     for p in pids:
@@ -23,16 +17,8 @@ def test_correct_and_incorrect_counted(client, db):
         assert post(client, p).status_code == 201
     for p in pids[3:]:
         assert post(client, p, False, "Product Support").status_code == 201
-    assert counter("triageiq_feedback", version) == 5
-    assert counter("triageiq_feedback_incorrect", version) == 2
+    assert len(db.feedback) == 5
     assert db.feedback[pids[0]] == (True, None, "alice")
-
-
-def test_smoke_not_counted(client, db):
-    version, pid = f"v-{uuid.uuid4()}", uuid.uuid4()
-    db.add(pid, source="smoke", version=version)
-    assert post(client, pid, False, "Product Support").status_code == 201
-    assert counter("triageiq_feedback", version) == 0
     assert counter("triageiq_feedback_incorrect", version) == 0
 
 

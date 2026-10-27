@@ -8,7 +8,7 @@ from psycopg_pool import PoolTimeout
 
 from app.clients import ModelClient, ModelUnavailable
 from app.db import Database
-from app.observability import PREDICTIONS, request_id_var
+from app.observability import request_id_var
 from app.schemas import LabelsOut, PendingItem, TicketIn, TicketOut
 from app.settings import Settings
 
@@ -57,8 +57,6 @@ def create_ticket(
     except DB_ERRORS:
         log.error("database unavailable")
         raise HTTPException(503, "db_unavailable") from None
-    if ticket.source != "smoke":
-        PREDICTIONS.labels(prediction.model_version, prediction.label).inc()
     log.info(
         "ticket stored",
         extra={"ticket_id": str(ticket_id), "prediction_id": str(prediction_id),

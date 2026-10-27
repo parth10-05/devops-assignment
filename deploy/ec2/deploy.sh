@@ -20,7 +20,6 @@ umask 077
 {
   printf 'POSTGRES_PASSWORD=%s\n' "$(get_parameter "${parameter_prefix}/postgres-password")"
   printf 'GATEWAY_HTPASSWD=%s\n' "$(get_parameter "${parameter_prefix}/gateway-htpasswd")"
-  printf 'GRAFANA_ADMIN_PASSWORD=%s\n' "$(get_parameter "${parameter_prefix}/grafana-admin-password")"
   printf 'SMOKE_PASSWORD=%s\n' "$(get_parameter "${parameter_prefix}/smoke-password")"
   printf '%s\n' 'SMOKE_USER=smoke'
   printf '%s\n' 'GATEWAY_BIND_ADDRESS=0.0.0.0'

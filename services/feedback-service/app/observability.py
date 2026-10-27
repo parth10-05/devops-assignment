@@ -7,8 +7,6 @@ import uuid
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from prometheus_client import Counter
-from prometheus_fastapi_instrumentator import Instrumentator
 from pythonjsonlogger.json import JsonFormatter
 
 SERVICE = "feedback-service"
@@ -60,11 +58,3 @@ def instrument(app: FastAPI) -> None:
     async def internal_error(request: Request, exc: Exception):
         log.exception("unhandled error")
         return JSONResponse({"detail": "internal_error"}, status_code=500)
-
-    Instrumentator().instrument(app).expose(app, include_in_schema=False)
-
-
-FEEDBACK = Counter("triageiq_feedback", "Non-smoke feedback stored", ["model_version"])
-FEEDBACK_INCORRECT = Counter(
-    "triageiq_feedback_incorrect", "Non-smoke feedback marked incorrect", ["model_version"]
-)

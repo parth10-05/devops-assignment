@@ -49,14 +49,12 @@ jobs:
         env:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           GATEWAY_HTPASSWD: ${{ secrets.GATEWAY_HTPASSWD }}
-          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
           SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD }}
         run: |
           set -euo pipefail
           prefix="/${PROJECT_NAME}/${ENVIRONMENT}"
           aws ssm put-parameter --name "${prefix}/postgres-password" --type SecureString --value "$POSTGRES_PASSWORD" --overwrite
           aws ssm put-parameter --name "${prefix}/gateway-htpasswd" --type SecureString --value "$GATEWAY_HTPASSWD" --overwrite
-          aws ssm put-parameter --name "${prefix}/grafana-admin-password" --type SecureString --value "$GRAFANA_ADMIN_PASSWORD" --overwrite
           aws ssm put-parameter --name "${prefix}/smoke-password" --type SecureString --value "$SMOKE_PASSWORD" --overwrite
       - name: Resolve Terraform-managed resources
         id: resources
@@ -99,5 +97,8 @@ jobs:
             --comment "Deploy ${RELEASE_SHA}" \
             --parameters file:///tmp/ssm-parameters.json \
             --query Command.CommandId --output text)"
-          aws ssm wait command-executed --command-id "$command_id" --instance-id "${{ steps.resources.outputs.instance_id }}"
-          aws ssm get-command-invocation --command-id "$command_id" --instance-id "${{ steps.resources.outputs.instance_id }}" --query '{Status:Status,Output:StandardOutputContent,Error:StandardErrorContent}'
+          if ! aws ssm wait command-executed --command-id "$command_id" --instance-id "${{ steps.resources.outputs.instance_id }}"; then
+            aws ssm get-command-invocation --command-id "$command_id" --instance-id "${{ steps.resources.outputs.instance_id }}" --query '{Status:Status,Output:StandardOutputContent,Error:StandardErrorContent}' --output json
+            exit 1
+          fi
+          aws ssm get-command-invocation --command-id "$command_id" --instance-id "${{ steps.resources.outputs.instance_id }}" --query '{Status:Status,Output:StandardOutputContent,Error:StandardErrorContent}' --output json

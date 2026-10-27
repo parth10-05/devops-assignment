@@ -63,7 +63,6 @@ Add these **environment secrets**. Never add them to a file or commit them:
 |---|---|
 | `POSTGRES_PASSWORD` | Database password used only inside the Compose network |
 | `GATEWAY_HTPASSWD` | Apache htpasswd hash for the reviewer gateway |
-| `GRAFANA_ADMIN_PASSWORD` | Local observability dashboard password |
 | `SMOKE_PASSWORD` | Password paired with the fixed `smoke` user for automated smoke checks |
 
 Create the gateway hash locally, then paste only the generated hash into the
@@ -96,8 +95,7 @@ The deployment uses `docker compose up -d --build` and preserves that volume.
 
 ## Cost guardrails
 
-Use an instance type that AWS marks Free Tier eligible for the actual account.
-The application is memory-intensive, so `t3.small` is the starting point, not
-`t3.micro`. The Terraform budget is an alert, not a hard spending cap. Keep the
-CloudFront default domain instead of buying a domain, and delete the stack with
+The default `m7i-flex.large` is a paid instance type and is not Free Tier eligible.
+The Terraform budget is an alert, not a hard spending cap. Keep the CloudFront
+default domain instead of buying a domain, and delete the stack with
 `terraform destroy` when the assignment is no longer being demonstrated.

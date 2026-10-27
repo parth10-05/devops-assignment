@@ -46,8 +46,6 @@ docker compose up -d
 
 Verify the services are running with `docker compose ps`:
 * **Reviewer UI (Nginx)**: [http://localhost:8085](http://localhost:8085) (Login: `reviewer1` / `reviewer1`)
-* **Prometheus Targets**: [http://localhost:9090/targets](http://localhost:9090/targets) (Scrapes backend & feedback)
-* **Grafana Dashboard**: [http://localhost:3005](http://localhost:3005) (Login: `admin` / `admin` -> *TriageIQ Overview*)
 * **Model Inference API**: [http://localhost:8002/health](http://localhost:8002/health)
 
 ---
@@ -74,7 +72,5 @@ and the existing Docker Compose backend to EC2.
 | Service | Port | Description |
 | :--- | :--- | :--- |
 | **Gateway UI** | `8085` | Nginx reverse proxy & reviewer frontend |
-| **Grafana** | `3005` | Real-time accuracy, error ratio & drift dashboard |
-| **Prometheus** | `9090` | Time-series metrics engine & alerts |
 | **Model Service** | `8002` | Local CPU inference API |
 | **PostgreSQL** | `5433` | Host port mapped to container port 5432 |

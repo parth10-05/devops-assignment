@@ -6,7 +6,6 @@ from fastapi.responses import JSONResponse
 from psycopg_pool import PoolTimeout
 
 from app.db import AlreadyReviewed, Database, UnknownPrediction
-from app.observability import FEEDBACK, FEEDBACK_INCORRECT
 from app.schemas import FeedbackIn, FeedbackOut
 
 router = APIRouter()
@@ -59,10 +58,6 @@ def create_feedback(
         log.error("database unavailable")
         raise HTTPException(503, "db_unavailable") from None
 
-    if pred.source != "smoke":
-        FEEDBACK.labels(pred.model_version).inc()
-        if not fb.is_correct:
-            FEEDBACK_INCORRECT.labels(pred.model_version).inc()
     log.info(
         "feedback stored",
         extra={"feedback_id": feedback_id, "prediction_id": str(fb.prediction_id),

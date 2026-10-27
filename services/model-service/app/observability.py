@@ -7,7 +7,6 @@ import uuid
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from prometheus_fastapi_instrumentator import Instrumentator
 from pythonjsonlogger.json import JsonFormatter
 
 SERVICE = "model-service"
@@ -59,5 +58,3 @@ def instrument(app: FastAPI) -> None:
     async def internal_error(request: Request, exc: Exception):
         log.exception("unhandled error")
         return JSONResponse({"detail": "internal_error"}, status_code=500)
-
-    Instrumentator().instrument(app).expose(app, include_in_schema=False)

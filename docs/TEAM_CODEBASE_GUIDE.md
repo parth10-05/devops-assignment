@@ -12,7 +12,6 @@
    - [config/ (Labels & Drift Schema)](#a-config-labels--drift-schema)
    - [data/ (Raw, Processed & DVC Versioning)](#b-data-raw-processed--dvc-versioning)
    - [ml/ (Feature Extraction, Training & Tests)](#c-ml-triage_ml-package--tests)
-   - [ops/ (Prometheus, Grafana & Alertmanager)](#d-ops-monitoring-dashboards--webhooks)
    - [scripts/ (Pipelines, Retraining & Smoke Tests)](#e-scripts-operational-tools--pipelines)
    - [services/ (The 6 Microservices)](#f-services-the-6-containerized-microservices)
 4. [The Closed-Loop Automated Retraining Pipeline](#4-the-closed-loop-automated-retraining-pipeline)
@@ -22,7 +21,7 @@
 
 ## 1. Project Overview & System Architecture
 
-**TriageIQ** is an enterprise MLOps platform that automatically routes incoming customer support tickets into 10 specialized queues. It incorporates **Human-in-the-Loop (HITL)** active learning, real-time observability, concept drift detection, and an **event-driven automated retraining pipeline**.
+**TriageIQ** is an enterprise MLOps platform that automatically routes incoming customer support tickets into 10 specialized queues. It incorporates **Human-in-the-Loop (HITL)** active learning, concept drift detection, and an **event-driven automated retraining pipeline**.
 
 ```
                            [ Customer Support Tickets ]
@@ -45,13 +44,6 @@
      │(Hybrid Classifier)  │  (tickets, predictions, feedback)  │
      └──────────────────┘  └────────────────────────────────────┘
                                         ▲
-════════════════════════════ Observability ════════════════════════════
-                                        │
-┌──────────────────┐       ┌────────────┴─────────────┐       ┌────────────────────┐
-│ Grafana (:3005)  │ ◄──── │   Prometheus (:9090)     │ ─────►│Alertmanager (:9093)│
-│ (Live Dashboards)│       │ (Scrapes metrics every 5s)│       │(Alert visibility)  │
-└──────────────────┘       └──────────────────────────┘       └────────────────────┘
-
 ════════════════════ GitHub Actions delivery on push to main ════════════════════
                                                                   │
                                                      tests + scans + deploy
@@ -65,7 +57,7 @@
 
 | File | Purpose | Why It Is Crucial |
 | :--- | :--- | :--- |
-| **`docker-compose.yml`** | Multi-container orchestration | Spins up all 9 services (gateway, backend-api, feedback-service, model-service, postgres, ticket-generator, prometheus, alertmanager, grafana) with memory limits, healthchecks, and internal networks. |
+| **`docker-compose.yml`** | Multi-container orchestration | Spins up the 6 application services (gateway, backend-api, feedback-service, model-service, postgres, ticket-generator) with memory limits, healthchecks, and internal networks. |
 | **`requirements.txt`** | Python environment dependencies | Core libraries (`fastapi`, `uvicorn`, `scikit-learn`, `sentence-transformers`, `torch`, `pandas`, `psycopg`) required for local virtual environment (`.venv`). |
 | **`pyproject.toml`** | Testing & Linting configuration | Configures `pytest` with `pythonpath = ["ml"]` and test markers so tests resolve the `triage_ml` package automatically. |
 | **`.env`** | Local secrets and environment vars | Stores database passwords, ports, and gateway auth hashes. Cloud deployment secrets live in GitHub Environment secrets and Parameter Store. |
@@ -98,7 +90,7 @@
     - Service Outages and Maintenance
   ```
 * **Why `heldout_labels` matters**:
-  `Service Outages and Maintenance` is intentionally excluded from initial training. When testing drift detection, the `ticket-generator` streams this heldout category. Because the model has never learned it, errors spike, triggering the **30% error threshold alert** in Prometheus!
+  `Service Outages and Maintenance` is intentionally excluded from initial training. When testing drift detection, the `ticket-generator` streams this heldout category. Because the model has never learned it, errors spike, producing useful feedback for retraining evaluation.
 
 ---
 
@@ -142,44 +134,7 @@ Contains the Python package `triage_ml` and its automated test suite:
 
 ---
 
-### D. `ops/` (Monitoring, Dashboards & Webhooks)
-
-#### 1. `ops/prometheus/` (Metrics & Alerting Engine)
-* **`prometheus.yml`**: Configures Prometheus to scrape `/metrics` from `backend-api` and `feedback-service` every **5 seconds**. Points alert notifications to `alertmanager:9093`.
-* **`alerts.yml`**: Contains PromQL recording rules and the retraining alert:
-  ```yaml
-  - record: triageiq:feedback_error_ratio_1h
-    expr: |
-      sum by (model_version) (increase(triageiq_feedback_incorrect_total[1h]))
-      /
-      sum by (model_version) (increase(triageiq_feedback_total[1h]))
-  - alert: ModelErrorRateHigh
-    expr: triageiq:feedback_error_ratio_1h > 0.50 and triageiq:feedback_count_1h >= 20
-    for: 1m
-    labels:
-      severity: retrain
-  ```
-  - **Threshold 0.50**: Triggers whenever reviewer error rate exceeds 50% (prevents false alarms since healthy baseline has ~38% error).
-  - **Count $\ge$ 20**: Requires at least 20 reviews for statistical significance.
-  - **For 1m**: 1-minute debounce window before firing.
-  - **Repeat Interval 30m**: Alertmanager repeats a visible alert at most every 30 minutes.
-
-#### 2. `ops/grafana/` (Zero-Click Pre-provisioned Dashboards)
-* **`provisioning/datasources/datasources.yaml`**: Auto-mounts Prometheus as default datasource.
-* **`provisioning/dashboards/dashboards.yaml`**: Auto-loads dashboards from disk every 10 seconds.
-* **`dashboards/triageiq-overview.json`**: Pre-built *TriageIQ Overview* dashboard with 5 panels:
-  1. *Tickets Processed / Min* (Throughput rate)
-  2. *Live Model Accuracy (1h)* ($1 - \text{error ratio}$)
-  3. *Error Ratio vs 0.50 Alert Threshold* (Time-series with red threshold line at 0.50)
-  4. *Predicted Queue Mix (Drift Signal)* (Stacked area distribution across queues)
-  5. *Human Reviews in Last Hour* (Total review count)
-
-#### 3. `ops/alertmanager/` (Local Alert Visibility)
-* **`alertmanager.yml`**: Receives `ModelErrorRateHigh` alerts from Prometheus for the local observability demonstration. Deployment automation deliberately remains in GitHub Actions so releases are tied to reviewed commits rather than alert webhooks.
-
----
-
-### E. `scripts/` (Operational Tools & Pipelines)
+### D. `scripts/` (Operational Tools & Pipelines)
 
 | Script | Purpose |
 | :--- | :--- |
@@ -191,13 +146,13 @@ Contains the Python package `triage_ml` and its automated test suite:
 
 ---
 
-### F. `services/` (The 6 Containerized Microservices)
+### E. `services/` (The 6 Containerized Microservices)
 
 ```text
 services/
 ├── gateway/              # Nginx Reverse Proxy (8085) + Reviewer Web UI
 ├── backend-api/          # Ticket Ingestion & Routing API (8000)
-├── feedback-service/     # Human Review Submission & Metrics API (8001)
+├── feedback-service/     # Human Review Submission API (8001)
 ├── model-service/        # Low-latency ML Inference Service (8002)
 ├── postgres/             # Database (5433) + Schema Migrations
 └── ticket-generator/     # Background Traffic & Drift Simulator
@@ -208,11 +163,10 @@ services/
    - Routes `/api/*` to `backend-api` and `/feedback-api/*` to `feedback-service`.
    - Serves the **Reviewer Web UI** ([frontend/index.html](file:///d:/MLOps/services/gateway/frontend/index.html), `app.js`, `styles.css`) where support agents review tickets and submit corrections.
 2. **`backend-api/`** (`port 8000`):
-   - Ingestion API (FastAPI). Receives `POST /tickets`, calls `model-service:8000/predict`, saves ticket & prediction to PostgreSQL, and emits Prometheus metrics (`triageiq_predictions_total`).
+   - Ingestion API (FastAPI). Receives `POST /tickets`, calls `model-service:8000/predict`, saves ticket & prediction to PostgreSQL.
 3. **`feedback-service/`** (`port 8001`):
    - Human feedback API (FastAPI). Receives reviewer verdicts (`is_correct: true/false`, `corrected_label`).
    - **Idempotency**: Returns `409 Conflict` if the same prediction is reviewed twice.
-   - **Metrics Engine**: Increments `triageiq_feedback_total` and `triageiq_feedback_incorrect_total`.
 4. **`model-service/`** (`port 8002`):
    - Real-time ML inference service (FastAPI + Uvicorn).
    - Background model loading (returns `503` on `/health` until model is ready).
@@ -246,24 +200,16 @@ from GitHub Actions so the deployed revision is always a commit on `main`.
 [1] Reviewers mark tickets incorrect
            │
            ▼
-[2] Feedback Service records metrics
-    (triageiq_feedback_incorrect_total increments)
+[2] Reviewer feedback is available to retrain_local.py when a new model is needed
            │
            ▼
-[3] Prometheus scrapes metrics & evaluates alerts.yml
-    (Error ratio exceeds 0.50 for 1m -> Alert turns FIRING locally)
-           │
-           ▼
-[4] Reviewer feedback is available to retrain_local.py when a new model is needed
-           │
-           ▼
-[5] A push to main triggers GitHub Actions
+[3] A push to main triggers GitHub Actions
     ├── CI runs tests, linting, secret, dependency, SAST, and filesystem scans
     ├── Deployment trains the baseline release artifact and publishes the UI to S3
     └── EC2 receives the exact commit bundle through Systems Manager
            │
            ▼
-[6] CloudFront serves the updated frontend and routes API paths to EC2
+[4] CloudFront serves the updated frontend and routes API paths to EC2
 ```
 
 ---
@@ -275,9 +221,6 @@ from GitHub Actions so the deployed revision is always a commit on `main`.
 | Service | Local URL | Default Credentials | What to Show Evaluators |
 | :--- | :--- | :--- | :--- |
 | **Reviewer Web UI** | [http://localhost:8085](http://localhost:8085) | `smoke` / `smoke` | Live pending tickets, human review interface, and instant feedback submission. |
-| **Grafana Dashboard** | [http://localhost:3005](http://localhost:3005) | `admin` / `admin` | Real-time throughput, live accuracy, error ratio vs. 0.30 red alert line, and queue mix. |
-| **Prometheus Alerts** | [http://localhost:9090/alerts](http://localhost:9090/alerts) | (No auth) | `ModelErrorRateHigh` alert state (Green Inactive $\to$ Yellow Pending $\to$ Red Firing). |
-| **Alertmanager** | [http://localhost:9093](http://localhost:9093) | (No auth) | Local view of active alerts. |
 | **GitHub Actions** | Repository **Actions** tab | GitHub access | CI and automatic deployment history for every push to `main`. |
 | **Model Health API** | [http://localhost:8002/health](http://localhost:8002/health) | (No auth) | Returns `{"status": "ok", "model_version": "..."}` showing the active model version. |
 | **PostgreSQL** | `localhost:5433` | `triageiq` / `postgres` | Tables and `labeled_feedback` view storing human corrections. |
@@ -288,13 +231,9 @@ from GitHub Actions so the deployed revision is always a commit on `main`.
 
 1. **Show the Web UI (`http://localhost:8085`)**:
    Show tickets streaming in every 10–15 seconds from `ticket-generator`.
-2. **Show the Grafana Dashboard (`http://localhost:3005`)**:
-   Point out the **red dotted line at 0.30 (30%)** on the *Error Ratio* panel.
-3. **Simulate Model Drift / Operator Corrections**:
+2. **Simulate Model Drift / Operator Corrections**:
    Review ~10–12 tickets in the Web UI and mark them as **"Incorrect"** (or let drift tickets stream).
-4. **Watch the Alert Fire in Prometheus (`http://localhost:9090/alerts`)**:
-   Show that once the error ratio exceeds **30%**, `ModelErrorRateHigh` turns 🔴 **FIRING**.
-5. **Show the GitHub Actions deployment**:
+3. **Show the GitHub Actions deployment**:
    Push a small reviewed change to `main`, then show the successful CI and deployment workflow runs.
-6. **Show the CloudFront URL**:
+4. **Show the CloudFront URL**:
    Open the Terraform `frontend_url` output and demonstrate that the reviewer UI and API calls work through the one HTTPS address.

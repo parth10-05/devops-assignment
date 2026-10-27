@@ -28,13 +28,6 @@ flowchart TD
         FB -->|Persist Feedback| D1
     end
 
-    subgraph Observability
-        PROM[Prometheus\nPort 9090] -->|Scrape :8000/metrics| BE
-        PROM -->|Scrape :8001/metrics| FB
-        PROM -->|Evaluate Rules| AL[alerts.yml\nError Ratio > 0.54]
-        GRAF[Grafana\nPort 3005] -->|Queries| PROM
-    end
-
     subgraph CI/CD & Active Learning
         UI -->|Approve / Correct| FB
         GHA[GitHub Actions\npush to main] -->|Stage 1: pytest + scans| TEST[Unit & Integration Tests]
@@ -50,7 +43,7 @@ flowchart TD
 ## 2. File-by-File Codebase Directory
 
 ### Root Configuration & Control
-* **`docker-compose.yml`**: Defines the 6 core microservices (`gateway`, `backend-api`, `feedback-service`, `ticket-generator`, `postgres`, `model-service`) plus the monitoring stack (`prometheus`, `grafana`). Enforces resource limits and persistent volume mounts.
+* **`docker-compose.yml`**: Defines the 6 core microservices (`gateway`, `backend-api`, `feedback-service`, `ticket-generator`, `postgres`, `model-service`). Enforces resource limits and persistent volume mounts.
 * **`.env`**: Local environment configuration defining ports (`GATEWAY_PORT=8085`, `POSTGRES_PORT=5433`), auth hashes, and operational switches.
 * **`STARTUP_GUIDE.md`**: Rapid copy-paste onboarding guide for teammates with Docker and Git installed.
 * **`pyproject.toml`**: Python project configuration specifying Ruff linter settings and pytest paths.
@@ -79,14 +72,14 @@ flowchart TD
 ### Microservices (`services/`)
 * **`services/gateway/`**:
   * `Dockerfile`: Alpine unprivileged Nginx reverse proxy.
-  * `nginx.conf.template`: Routes `/api/` to `backend-api` and `/feedback-api/` to `feedback-service`, blocks public access to `/metrics` (internal only), enforces BasicAuth (`reviewer1`), and rate limits traffic (10 req/s, burst 20).
+  * `nginx.conf.template`: Routes `/api/` to `backend-api` and `/feedback-api/` to `feedback-service`, enforces BasicAuth (`reviewer1`), and rate limits traffic (10 req/s, burst 20).
   * `frontend/index.html`: Reviewer dashboard displaying incoming tickets, predictions, confidence bars, and human review buttons (**Approve** / **Correct**).
 * **`services/backend-api/`**:
-  * `app/main.py`: FastAPI application lifespan, connection pooling, and Prometheus instrumentation.
+  * `app/main.py`: FastAPI application lifespan, connection pooling,.
   * `app/routes.py`: Endpoints for ticket ingestion (`POST /api/tickets`), label retrieval (`GET /api/labels`), and pending review queue (`GET /api/tickets/pending`).
   * `app/clients.py`: Resilient HTTP client communicating with `model-service` with circuit-breaking timeouts.
 * **`services/feedback-service/`**:
-  * `app/routes.py`: Feedback endpoint (`POST /feedback-api/feedback`). Validates human reviewer identity, verifies corrected labels, enforces review idempotency (HTTP 409 on duplicate verdict), and increments Prometheus counters.
+  * `app/routes.py`: Feedback endpoint (`POST /feedback-api/feedback`). Validates human reviewer identity, verifies corrected labels, enforces review idempotency (HTTP 409 on duplicate verdict).
 * **`services/model-service/`**:
   * `app/model.py`: High-performance CPU inference engine. Loads `classifier.joblib` and `all-MiniLM-L6-v2` dense embeddings directly from local volume `/app/artifacts` without external internet dependencies.
   * `app/routes.py`: Inference endpoint (`POST /predict`) returning predicted queue, confidence score $\in [0, 1]$, and top-3 alternatives.
@@ -94,12 +87,6 @@ flowchart TD
   * `app/main.py`: Autonomous background daemon replaying `stream.parquet` tickets into the gateway at configured intervals (`TICKET_INTERVAL_SECONDS=10`).
 * **`services/postgres/`**:
   * `migrations/001_initial_schema.sql`: PostgreSQL DDL creating `tickets`, `predictions`, `feedback`, `model_versions`, and `training_runs` tables with indexes.
-
-### Observability & Operations (`ops/`)
-* **`ops/prometheus/prometheus.yml`**: Configures Prometheus scrape intervals (5s) for `backend-api:8000`, `feedback-service:8000`, and Prometheus self-metrics.
-* **`ops/prometheus/alerts.yml`**: Defines PromQL recording rules (`triageiq:feedback_error_ratio_1h`) and alerting rules (`ModelErrorRateHigh` with threshold `0.54`).
-* **`ops/grafana/provisioning/`**: Automated YAML configurations auto-loading the Prometheus data source and TriageIQ dashboard upon container startup.
-* **`ops/grafana/dashboards/triageiq-overview.json`**: Pre-built dashboard showing Tickets/min, Live Accuracy, Error Ratio vs. Alert Line (0.54), Predicted Queue Mix (drift signal), and Human Reviews.
 
 ### Automation Scripts (`scripts/`)
 * **`scripts/prepare_data.py`**: 1-click script to download raw tickets and produce processed splits.
@@ -117,42 +104,26 @@ flowchart TD
 * **Rationale**: Pure bag-of-words (TF-IDF) captures specific keywords (e.g., *"VPN"*, *"invoice"*), while dense semantic embeddings (`all-MiniLM-L6-v2`) capture intent and semantic synonyms. Combining both via sparse-dense horizontal stacking achieves **>85% accuracy** on support tickets while running comfortably on CPU.
 * **Why CPU-Only?**: The dataset is ~9.3 MB and the MiniLM model is only 80 MB. Full CPU retraining takes **<8 seconds** with stratified sampling, completely removing the requirement for expensive GPUs or cloud servers.
 
-### Decision 2: The Error Rate Alert Threshold (`0.30`)
-* **Threshold & Trigger**:
-  * Configured at **0.30 (30% error rate)** in [ops/prometheus/alerts.yml](file:///d:/MLOps/ops/prometheus/alerts.yml).
-  * Evaluated continuously in PromQL:
-  ```promql
-  triageiq:feedback_error_ratio_1h = 
-    sum by (model_version) (increase(triageiq_feedback_incorrect_total[1h]))
-    /
-    sum by (model_version) (increase(triageiq_feedback_total[1h]))
-  ```
-  * The alert `ModelErrorRateHigh` triggers if `feedback_error_ratio_1h > 0.30` and `feedback_count_1h >= 10`.
-* **Alertmanager visibility**:
-  * Alertmanager retains the firing alert for the local observability demonstration.
-  * Deployment automation is intentionally separate: GitHub Actions runs on an approved push to `main` and deploys the exact commit revision.
 
-### Decision 3: Feedback Watermarking (`cutoff_id`)
+### Decision 2: Feedback Watermarking (`cutoff_id`)
 * When retraining on human reviews, repeatedly training on the exact same reviews causes overfitting and redundant work.
 * TriageIQ stores a `feedback_cutoff` ID in the `training_runs` table. Future retraining runs only ingest feedback where `feedback_id > feedback_cutoff`. This ensures idempotency and incremental active learning.
 
-### Decision 4: 80/20 Feedback Split (Preventing Catastrophic Forgetting)
+### Decision 3: 80/20 Feedback Split (Preventing Catastrophic Forgetting)
 * In `split_feedback()`:
   * **80% (`fb_train`)**: Added directly to the training corpus to adjust decision boundaries.
   * **20% (`fb_holdout`)**: Saved separately to `artifacts/feedback_holdout.parquet`.
 * The challenger model is evaluated on both `golden.parquet` (general benchmark) and `fb_holdout` (human-corrected edge cases) to ensure it fixes mistakes without breaking existing queue knowledge.
 
-### Decision 5: Non-Conflicting Port Architecture on Windows
+### Decision 4: Non-Conflicting Port Architecture on Windows
 To eliminate socket permission (`WSAEACCES 10013`) and Hyper-V reserved port collisions on developer laptops:
 * **Gateway**: `8085` for local Docker Desktop; the EC2 deployment maps it to port `80` behind CloudFront.
 * **PostgreSQL**: `5433` on host (frees `5432` for local Windows Postgres services)
-* **Grafana**: `3005` (frees `3000` for native Windows Grafana installations)
-* **Prometheus**: `9090`
 * **Model Service**: `8002`
 * **Backend API**: `8000`
 * **Feedback Service**: `8001`
 
-### Decision 6: Zero-Touch Automated Redeployment
+### Decision 5: Zero-Touch Automated Redeployment
 * `docker-compose.yml` mounts host folder `./artifacts` directly into `model-service` via `:ro` (read-only volume).
 * GitHub Actions packages the commit-specific model artifact, then asks EC2 to run `docker compose up -d --build` through Systems Manager.
 * The EC2 deployment checks gateway and model health before the workflow succeeds.

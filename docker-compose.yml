@@ -93,48 +93,6 @@ services:
     ports: ["127.0.0.1:8002:8000"]
     deploy: {resources: {limits: {memory: 960M, cpus: "1.0"}}}
 
-  prometheus:
-    image: prom/prometheus:v2.53.0
-    command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--storage.tsdb.path=/prometheus"
-    volumes:
-      - ./ops/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./ops/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
-      - prometheus_data:/prometheus
-    ports: ["127.0.0.1:9090:9090"]
-    depends_on:
-      - alertmanager
-    restart: unless-stopped
-
-  alertmanager:
-    image: prom/alertmanager:v0.27.0
-    command:
-      - "--config.file=/etc/alertmanager/alertmanager.yml"
-      - "--storage.path=/alertmanager"
-    volumes:
-      - ./ops/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
-    ports: ["127.0.0.1:9093:9093"]
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    restart: unless-stopped
-
-  grafana:
-    image: grafana/grafana:11.1.0
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
-      - GF_USERS_ALLOW_SIGN_UP=false
-    volumes:
-      - ./ops/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./ops/grafana/dashboards:/etc/grafana/dashboards:ro
-      - grafana_data:/var/lib/grafana
-    ports: ["127.0.0.1:3005:3000"]
-    depends_on:
-      - prometheus
-    restart: unless-stopped
-
 volumes:
   pgdata:
   generator_state:
-  prometheus_data:
-  grafana_data:

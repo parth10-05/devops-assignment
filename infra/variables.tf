@@ -33,9 +33,9 @@ variable "deployment_branch" {
 }
 
 variable "instance_type" {
-  description = "Use a Free Tier eligible type shown by the target AWS account. t3.small gives the lean Compose profile the best chance of fitting."
+  description = "EC2 instance type for the Docker Compose application."
   type        = string
-  default     = "t3.small"
+  default     = "m7i-flex.large"
 }
 
 variable "root_volume_size" {

@@ -7,8 +7,6 @@ import uuid
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from prometheus_client import Counter, Histogram
-from prometheus_fastapi_instrumentator import Instrumentator
 from pythonjsonlogger.json import JsonFormatter
 
 SERVICE = "backend-api"
@@ -60,18 +58,3 @@ def instrument(app: FastAPI) -> None:
     async def internal_error(request: Request, exc: Exception):
         log.exception("unhandled error")
         return JSONResponse({"detail": "internal_error"}, status_code=500)
-
-    Instrumentator().instrument(app).expose(app, include_in_schema=False)
-
-
-PREDICTIONS = Counter(
-    "triageiq_predictions", "Non-smoke predictions stored", ["model_version", "label"]
-)
-MODEL_CALL_SECONDS = Histogram(
-    "triageiq_model_call_seconds",
-    "Duration of calls to model-service",
-    buckets=(0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30),
-)
-MODEL_CALL_ERRORS = Counter(
-    "triageiq_model_call_errors", "Failed calls to model-service", ["reason"]
-)
